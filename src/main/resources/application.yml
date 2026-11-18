@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: demo
+
+  # H2 인메모리 DB (개발용)
+  datasource:
+    url: jdbc:h2:mem:demo;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # 페이지네이션 기본값
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 100
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+
+# API 문서 (Swagger UI: /swagger-ui.html, OpenAPI 스펙: /v3/api-docs)
+springdoc:
+  default-produces-media-type: application/json
+  # @RestControllerAdvice의 모든 에러 응답이 전 API에 일괄 추가되지 않도록 끄고, 각 API에 발생 가능한 에러만 명시한다
+  override-with-generic-response: false
+  swagger-ui:
+    tags-sorter: alpha
+    display-request-duration: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug
