@@ -38,9 +38,7 @@ public class TodoQueryService {
      */
     public PageResponse<TodoResponse> getTodos(Long userId, Boolean completed, Pageable pageable) {
         validateUserExists(userId);
-        Page<Todo> todos = (completed == null)
-                ? todoQueryRepository.findAllByUserId(userId, pageable)
-                : todoQueryRepository.findAllByUserIdAndCompleted(userId, completed, pageable);
+        Page<Todo> todos = todoQueryRepository.findTodos(userId, completed, pageable);
         return PageResponse.of(todos, TodoResponse::from);
     }
 

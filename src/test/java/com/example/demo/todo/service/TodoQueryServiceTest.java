@@ -5,7 +5,6 @@ import static com.example.demo.todo.TodoFixture.user;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -111,7 +110,7 @@ class TodoQueryServiceTest {
             done.changeCompletion(true);
             List<Todo> todos = List.of(todo(10L, user, "미완료 일"), done);
             given(userQueryRepository.existsById(1L)).willReturn(true);
-            given(todoQueryRepository.findAllByUserId(1L, pageable)).willReturn(new PageImpl<>(todos, pageable, 5));
+            given(todoQueryRepository.findTodos(1L, null, pageable)).willReturn(new PageImpl<>(todos, pageable, 5));
 
             // when
             PageResponse<TodoResponse> response = todoQueryService.getTodos(1L, null, pageable);
@@ -121,7 +120,6 @@ class TodoQueryServiceTest {
             assertThat(response.totalElements()).isEqualTo(5);
             assertThat(response.totalPages()).isEqualTo(3);
             assertThat(response.hasNext()).isTrue();
-            then(todoQueryRepository).should(never()).findAllByUserIdAndCompleted(anyLong(), anyBoolean(), any());
         }
 
         @Test
@@ -131,7 +129,7 @@ class TodoQueryServiceTest {
             Todo done = todo(11L, user(1L), "완료한 일");
             done.changeCompletion(true);
             given(userQueryRepository.existsById(1L)).willReturn(true);
-            given(todoQueryRepository.findAllByUserIdAndCompleted(1L, true, pageable))
+            given(todoQueryRepository.findTodos(1L, true, pageable))
                     .willReturn(new PageImpl<>(List.of(done), pageable, 1));
 
             // when
@@ -140,7 +138,6 @@ class TodoQueryServiceTest {
             // then
             assertThat(response.content()).extracting(TodoResponse::id).containsExactly(11L);
             assertThat(response.hasNext()).isFalse();
-            then(todoQueryRepository).should(never()).findAllByUserId(anyLong(), any());
         }
 
         @Test
@@ -148,7 +145,7 @@ class TodoQueryServiceTest {
         void incompleteOnly() {
             // given
             given(userQueryRepository.existsById(1L)).willReturn(true);
-            given(todoQueryRepository.findAllByUserIdAndCompleted(1L, false, pageable))
+            given(todoQueryRepository.findTodos(1L, false, pageable))
                     .willReturn(new PageImpl<>(List.of(todo(10L, user(1L), "미완료 일")), pageable, 1));
 
             // when
@@ -169,6 +166,7 @@ class TodoQueryServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.USER_NOT_FOUND);
+            then(todoQueryRepository).should(never()).findTodos(anyLong(), any(), any());
         }
     }
 }

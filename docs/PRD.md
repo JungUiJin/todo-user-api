@@ -310,5 +310,5 @@ claude/
 ## 8. 미결 사항
 
 - 인증 도입 시 URI의 `{userId}`를 인증 정보(토큰)로 대체할지 여부
-- Query Repository 구현 방식: Spring Data JPA 메서드 쿼리로 충분한지, QueryDSL을 도입할지 여부
+- ~~Query Repository 구현 방식: Spring Data JPA 메서드 쿼리로 충분한지, QueryDSL을 도입할지 여부~~ → QueryDSL 도입으로 확정 (#2). 동적 조건이 필요한 목록 조회는 QueryDSL 커스텀 저장소, 단순 단건 조회는 메서드 쿼리를 유지
 - ~~빌드 도구: Gradle과 Maven 중 최종 선택~~ → Gradle로 확정 (1단계에서 `build.gradle` 기반으로 구성)
