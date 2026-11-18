@@ -1,10 +1,14 @@
 package com.example.demo.todo.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 
 import com.example.demo.global.config.JpaAuditingConfig;
+import com.example.demo.global.config.QuerydslConfig;
+import com.example.demo.global.exception.BusinessException;
+import com.example.demo.global.exception.ErrorCode;
 import com.example.demo.todo.entity.Todo;
 import com.example.demo.user.entity.User;
 import com.example.demo.user.repository.UserCommandRepository;
@@ -22,11 +26,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
 /**
- * 실제 H2 DB에서 쿼리 메서드와 사용자 삭제 시 할 일 일괄 삭제 동작을 검증한다.
+ * 실제 H2 DB에서 쿼리 메서드·QueryDSL 동적 조회와 사용자 삭제 시 할 일 일괄 삭제 동작을 검증한다.
  */
 @DisplayName("Todo 저장소 통합 테스트 (H2)")
 @DataJpaTest
-@Import({JpaAuditingConfig.class, UserCommandService.class})
+@Import({JpaAuditingConfig.class, QuerydslConfig.class, UserCommandService.class})
 class TodoRepositoryTest {
 
     @Autowired
@@ -66,7 +70,7 @@ class TodoRepositoryTest {
     }
 
     @Nested
-    @DisplayName("목록 조회 (완료 여부 필터링 + 페이징)")
+    @DisplayName("목록 조회 - QueryDSL (완료 여부 동적 필터링 + 페이징)")
     class FindAll {
 
         private final PageRequest firstPage = PageRequest.of(0, 2, Sort.by("id"));
@@ -74,7 +78,7 @@ class TodoRepositoryTest {
         @Test
         @DisplayName("필터 없이 조회하면 해당 사용자의 할 일만 페이지 단위로 반환한다")
         void withoutFilter() {
-            Page<Todo> page = todoQueryRepository.findAllByUserId(owner.getId(), firstPage);
+            Page<Todo> page = todoQueryRepository.findTodos(owner.getId(), null, firstPage);
 
             assertThat(page.getContent()).extracting(Todo::getTitle).containsExactly("할 일 1", "할 일 2");
             assertThat(page.getTotalElements()).isEqualTo(5);
@@ -85,7 +89,7 @@ class TodoRepositoryTest {
         @Test
         @DisplayName("completed=true면 완료된 할 일만 반환하고 전체 개수도 필터 기준으로 계산한다")
         void completedOnly() {
-            Page<Todo> page = todoQueryRepository.findAllByUserIdAndCompleted(owner.getId(), true, firstPage);
+            Page<Todo> page = todoQueryRepository.findTodos(owner.getId(), true, firstPage);
 
             assertThat(page.getContent()).extracting(Todo::getTitle).containsExactly("할 일 2", "할 일 4");
             assertThat(page.getContent()).allMatch(Todo::isCompleted);
@@ -96,12 +100,41 @@ class TodoRepositoryTest {
         @Test
         @DisplayName("completed=false면 미완료 할 일만 반환하며 다음 페이지도 올바르게 조회된다")
         void incompleteOnlySecondPage() {
-            Page<Todo> page = todoQueryRepository.findAllByUserIdAndCompleted(
+            Page<Todo> page = todoQueryRepository.findTodos(
                     owner.getId(), false, PageRequest.of(1, 2, Sort.by("id")));
 
             assertThat(page.getContent()).extracting(Todo::getTitle).containsExactly("할 일 5");
             assertThat(page.getTotalElements()).isEqualTo(3);
             assertThat(page.isLast()).isTrue();
+        }
+
+        @Test
+        @DisplayName("정렬 조건이 없으면 기본 정렬(id 오름차순)을 적용한다")
+        void defaultSortById() {
+            Page<Todo> page = todoQueryRepository.findTodos(owner.getId(), null, PageRequest.of(0, 5));
+
+            assertThat(page.getContent()).extracting(Todo::getTitle)
+                    .containsExactly("할 일 1", "할 일 2", "할 일 3", "할 일 4", "할 일 5");
+        }
+
+        @Test
+        @DisplayName("허용된 속성으로 내림차순 정렬할 수 있다")
+        void sortByIdDesc() {
+            Page<Todo> page = todoQueryRepository.findTodos(
+                    owner.getId(), null, PageRequest.of(0, 2, Sort.by(Sort.Direction.DESC, "id")));
+
+            assertThat(page.getContent()).extracting(Todo::getTitle).containsExactly("할 일 5", "할 일 4");
+        }
+
+        @Test
+        @DisplayName("허용되지 않은 정렬 속성이면 INVALID_INPUT 예외가 발생한다")
+        void invalidSortProperty() {
+            PageRequest pageable = PageRequest.of(0, 2, Sort.by("user.password"));
+
+            assertThatThrownBy(() -> todoQueryRepository.findTodos(owner.getId(), null, pageable))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_INPUT);
         }
     }
 
@@ -112,7 +145,7 @@ class TodoRepositoryTest {
         @Test
         @DisplayName("다른 사용자의 할 일 ID로는 조회되지 않는다")
         void otherUsersTodo() {
-            Long othersTodoId = todoQueryRepository.findAllByUserId(other.getId(), PageRequest.of(0, 1))
+            Long othersTodoId = todoQueryRepository.findTodos(other.getId(), null, PageRequest.of(0, 1))
                     .getContent().get(0).getId();
 
             assertThat(todoQueryRepository.findByIdAndUserId(othersTodoId, other.getId())).isPresent();
@@ -151,7 +184,7 @@ class TodoRepositoryTest {
     @Test
     @DisplayName("할 일을 저장하면 생성/수정 일시가 자동으로 채워진다")
     void auditingFields() {
-        Todo todo = todoQueryRepository.findAllByUserId(owner.getId(), PageRequest.of(0, 1)).getContent().get(0);
+        Todo todo = todoQueryRepository.findTodos(owner.getId(), null, PageRequest.of(0, 1)).getContent().get(0);
 
         assertThat(todo.getCreatedAt()).isNotNull();
         assertThat(todo.getUpdatedAt()).isNotNull();
